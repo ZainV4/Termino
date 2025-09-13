@@ -3,16 +3,10 @@ package MainCenter;
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
-import javafx.scene.control.Button;
-import javafx.scene.control.Label;
-import javafx.scene.control.ScrollPane;
-import javafx.scene.control.TextField;
+import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Pane;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.VBox;
+import javafx.scene.input.KeyEvent;
+import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
@@ -23,7 +17,7 @@ import MainCenter.Settings.Settings;
 import MainCenter.Settings.SettingsService;
 import MainCenter.Settings.SettingsDialog;
 
-import MainCenter.handlers.BuiltinHandlers;     // keep your existing builtins
+import MainCenter.handlers.BuiltinHandlers;
 import MainCenter.terminal.CommandRegistry;
 import MainCenter.terminal.TerminalIO;
 import MainCenter.terminal.CommandCall;
@@ -36,22 +30,18 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Main app with Tabbed REPL sessions.
+ * - Ctrl+T: new tab
+ * - Ctrl+W: close tab
+ * - Ctrl+Tab / Ctrl+Shift+Tab: switch tabs
+ * - Aliases (pcap/index/top/timeline/flows where/detect syn-scan/detect exfil/dns rare/graph/http suspicious/export/note/demo)
+ * - Multiple commands per line using ';'
+ */
 public class Main extends Application {
-    // UI
-    private TextFlow output;
-    private ScrollPane scroll;
-    private TextField input;
-
-    // history
-    private final List<String> history = new ArrayList<>();
-    private int histPos = 0;
-
-    // commands
-    private CommandRegistry registry;
 
     // settings
     private Settings settings;
@@ -73,8 +63,12 @@ public class Main extends Application {
             Map.entry("graph", "net:graph"),
             Map.entry("http.suspicious", "net:http.suspicious"),
             Map.entry("export", "net:export"),
-            Map.entry("note", "net:note")
+            Map.entry("note", "net:note"),
+            Map.entry("demo", "net:make_demo") // optional demo generator
     );
+
+    // Keep references to sessions so we can re-apply settings
+    private final List<TerminalSession> sessions = new ArrayList<>();
 
     @Override
     public void start(Stage stage) {
@@ -82,46 +76,50 @@ public class Main extends Application {
         settingsService = new SettingsService();
         settings = settingsService.load();
 
-        // --- UI root ---
-        output = new TextFlow();
-        output.getStyleClass().add("output");
-        output.setLineSpacing(4);
-
-        scroll = new ScrollPane(output);
-        scroll.setFitToWidth(true);
-        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scroll.getStyleClass().add("scroll");
-
-        input = new TextField();
-        input.getStyleClass().add("input");
-        input.setPromptText("type a command, e.g. help");
-
+        // --- Root UI ---
         BorderPane root = new BorderPane();
-        root.setCenter(scroll);
-        VBox bottom = new VBox(input);
-        bottom.setPadding(new Insets(8));
-        root.setBottom(bottom);
-        root.getStyleClass().add("root");
 
-        // --- Scene ---
-        Scene scene = new Scene(root, 900, 560);
-        scene.getStylesheets().add(getClass().getResource("/terminal.css").toExternalForm());
-        scene.setFill(Color.web("#0b0f10")); // avoid any white flash
-
-        // --- Custom title bar (undecorated) ---
-        stage.initStyle(StageStyle.UNDECORATED);
-
+        // Title bar
         Label title = new Label(" Terminal ");
-        Pane spacer = new Pane();                  // Pane avoids Region/Swing clash
+        Pane spacer = new Pane();
         HBox.setHgrow(spacer, Priority.ALWAYS);
+        Button btnNewTab = new Button("+");
+        btnNewTab.getStyleClass().add("newtab"); // <— distinct look for the + button
         Button btnSettings = new Button("⚙");
         Button btnMin = new Button("—");
         Button btnMax = new Button("▢");
         Button btnClose = new Button("✕");
-
-        HBox titleBar = new HBox(title, spacer, btnSettings, btnMin, btnMax, btnClose);
+        HBox titleBar = new HBox(title, spacer, btnNewTab, btnSettings, btnMin, btnMax, btnClose);
         titleBar.getStyleClass().add("titlebar");
         root.setTop(titleBar);
+
+        // --- Center: tabbed terminal sessions ---
+        TabPane tabs = new TabPane();
+        tabs.getStyleClass().add("term-tabs");   // <— make tabs pretty
+        tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
+        root.setCenter(tabs);
+
+        // helper to add a new terminal tab
+        Runnable addNewTab = () -> {
+            TerminalSession s = new TerminalSession(settings);
+            sessions.add(s);
+            Tab t = new Tab("Session " + (tabs.getTabs().size() + 1), s.getRoot());
+            t.setOnClosed(ev -> s.dispose());
+            tabs.getTabs().add(t);
+            tabs.getSelectionModel().select(t);
+            s.focusInput();
+        };
+
+        // create first tab
+        addNewTab.run();
+
+        // --- Scene ---
+        Scene scene = new Scene(root, 1000, 620);
+        scene.getStylesheets().add(getClass().getResource("/terminal.css").toExternalForm());
+        scene.setFill(Color.web("#0b0f10")); // avoid white flash
+        stage.initStyle(StageStyle.UNDECORATED);
+        stage.setTitle("Terminal");
+        stage.setScene(scene);
 
         // window actions
         btnMin.setOnAction(e -> stage.setIconified(true));
@@ -134,126 +132,57 @@ public class Main extends Application {
         titleBar.setOnMouseDragged(e -> { if (!stage.isMaximized()) { stage.setX(e.getScreenX() - drag[0]); stage.setY(e.getScreenY() - drag[1]); } });
         titleBar.setOnMouseClicked(e -> { if (e.getClickCount() == 2) stage.setMaximized(!stage.isMaximized()); });
 
-        // Settings dialog
+        // Title bar actions
+        btnNewTab.setOnAction(e -> addNewTab.run());
         btnSettings.setOnAction(e ->
-            new SettingsDialog(stage, settingsService).showAndApply(settings, s -> {
-                settings = s;
-                applySettings(stage);
-            })
+                new SettingsDialog(stage, settingsService).showAndApply(settings, s -> {
+                    settings = s;
+                    applySettings(stage);
+                    // push settings to each session
+                    for (var sess : sessions) sess.applySettings(settings);
+                })
         );
 
-        // Finish stage
-        stage.setTitle("Terminal");
-        stage.setScene(scene);
-        applySettings(stage); // push colors/font/always-on-top
-        stage.show();
-
-        // --- Terminal I/O binding ---
-        TerminalIO io = new TerminalIO() {
-            @Override public void out(String line)  { appendOut(line); }
-            @Override public void err(String line)  { appendErr(line); }
-            @Override public void clear()           { output.getChildren().clear(); printBanner(); }
-            @Override public void exit()            { stage.close(); }
-        };
-
-        // --- Registry + handlers ---
-        registry = new CommandRegistry(Path.of("commands")); // project-root/commands/*.json
-
-        // Built-ins that exist
-        registry.registerHandler(new BuiltinHandlers.Echo());    // "builtin:echo"
-        registry.registerHandler(new BuiltinHandlers.Time());    // "builtin:time"
-        registry.registerHandler(new BuiltinHandlers.Clear());   // "builtin:clear"
-        registry.registerHandler(new BuiltinHandlers.Exit());    // "builtin:exit"
-
-        // Network pack (embedded below as nested classes)
-        registry.registerHandler(new NetHandlers.PcapLoad());       // "net:pcap"
-        registry.registerHandler(new NetHandlers.IndexBuild());     // "net:index"
-        registry.registerHandler(new NetHandlers.Filter());         // "net:filter"
-        registry.registerHandler(new NetHandlers.TopTalkers());     // "net:top.talkers"
-        registry.registerHandler(new NetHandlers.Timeline());       // "net:timeline"
-        registry.registerHandler(new NetHandlers.FlowsWhere());     // "net:flows.where"
-        registry.registerHandler(new NetHandlers.DetectSynScan());  // "net:detect.syn_scan"
-        registry.registerHandler(new NetHandlers.DetectExfil());    // "net:detect.exfil"
-        registry.registerHandler(new NetHandlers.DnsRare());        // "net:dns.rare"
-        registry.registerHandler(new NetHandlers.Graph());          // "net:graph"
-        registry.registerHandler(new NetHandlers.HttpSuspicious()); // "net:http.suspicious"
-        registry.registerHandler(new NetHandlers.Export());         // "net:export"
-        registry.registerHandler(new NetHandlers.Note());           // "net:note"
-
-        try { registry.loadAll(); }
-        catch (Exception ex) { io.err("Failed to load commands: " + ex.getMessage()); }
-
-        // --- Input handlers ---
-        input.setOnAction(e -> handleEnter(io));
-
-        input.setOnKeyPressed(e -> {
-            if (e.isControlDown() && e.getCode() == KeyCode.L) { io.clear(); e.consume(); return; }
-            if (e.isControlDown() && e.getCode() == KeyCode.R) {
-                try { registry.loadAll(); io.out("Commands reloaded."); }
-                catch (Exception ex) { io.err("Reload failed: " + ex.getMessage()); }
-                e.consume(); return;
-            }
-            if (e.getCode() == KeyCode.UP) {
-                if (!history.isEmpty()) {
-                    if (histPos > 0) histPos--;
-                    input.setText(history.get(histPos));
-                    input.positionCaret(input.getText().length());
+        // Keyboard shortcuts
+        scene.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
+            if (e.isControlDown() && e.getCode() == KeyCode.T) { // Ctrl+T -> new tab
+                addNewTab.run(); e.consume();
+            } else if (e.isControlDown() && e.getCode() == KeyCode.W) { // Ctrl+W -> close tab
+                if (!tabs.getTabs().isEmpty()) {
+                    Tab sel = tabs.getSelectionModel().getSelectedItem();
+                    if (sel != null) tabs.getTabs().remove(sel);
                 }
                 e.consume();
-            } else if (e.getCode() == KeyCode.DOWN) {
-                if (!history.isEmpty()) {
-                    if (histPos < history.size() - 1) {
-                        histPos++;
-                        input.setText(history.get(histPos));
-                        input.positionCaret(input.getText().length());
-                    } else {
-                        histPos = history.size();
-                        input.clear();
-                    }
+            } else if (e.isControlDown() && e.getCode() == KeyCode.TAB) { // Ctrl+Tab -> next
+                if (!tabs.getTabs().isEmpty()) {
+                    var sm = tabs.getSelectionModel();
+                    int i = (sm.getSelectedIndex() + 1) % tabs.getTabs().size();
+                    sm.select(i);
+                }
+                e.consume();
+            } else if (e.isControlDown() && e.isShiftDown() && e.getCode() == KeyCode.TAB) { // Ctrl+Shift+Tab -> prev
+                if (!tabs.getTabs().isEmpty()) {
+                    var sm = tabs.getSelectionModel();
+                    int i = (sm.getSelectedIndex() - 1 + tabs.getTabs().size()) % tabs.getTabs().size();
+                    sm.select(i);
                 }
                 e.consume();
             }
         });
 
-        printBanner();
-        appendOut("Loaded commands: " + String.join(", ", registry.definedCommands()));
-        appendOut("Type 'help' for a list, 'reload' after editing JSON, or 'exit' to quit.");
+        applySettings(stage);
+        stage.show();
     }
 
-    // --- Enhanced REPL: aliases + multi-command support (";") ---
-    private void handleEnter(TerminalIO io) {
-        String line = input.getText();
-        if (line == null) return;
-        String full = line.trim();
-        input.clear();
-        if (full.isEmpty()) return;
-
-        // Support multiple commands separated by ';'
-        String[] cmds = Arrays.stream(full.split("\\s*;\\s*"))
-                .filter(s -> s != null && !s.isBlank())
-                .toArray(String[]::new);
-
-        for (String rawCmd : cmds) {
-            appendPrompt(rawCmd);
-            history.add(rawCmd);
-            histPos = history.size();
-
-            String rewritten = rewriteAlias(rawCmd);
-
-            if (rewritten.equalsIgnoreCase("help")) {
-                io.out("Available commands: " + String.join(", ", registry.definedCommands()));
-                io.out("Usage: see each JSON file's 'usage' field (e.g., echo <text>)");
-                continue;
-            }
-            if (rewritten.equalsIgnoreCase("reload")) {
-                try { registry.loadAll(); io.out("Commands reloaded."); }
-                catch (Exception ex) { io.err("Reload failed: " + ex.getMessage()); }
-                continue;
-            }
-
-            registry.dispatch(rewritten, io);
-        }
-        scrollToBottom();
+    /** Apply window-level settings (bg/always-on-top) */
+    private void applySettings(Stage stage) {
+        if (stage.getScene() == null) return;
+        stage.getScene().getRoot().setStyle(String.format(
+                "-fx-font-size: %dpx; -fx-bg: %s; -fx-fg: %s; -fx-muted: %s;",
+                settings.fontSize, settings.bg, settings.fg, settings.border
+        ));
+        stage.getScene().setFill(Color.web(settings.bg));
+        stage.setAlwaysOnTop(settings.alwaysOnTop);
     }
 
     /** Rewrite first token using our alias map (supports multi-word heads like "flows where") */
@@ -262,27 +191,22 @@ public class Main extends Application {
         String trimmed = cmd.trim();
 
         // Special multi-word heads:
-        // flows where "expr"
         if (trimmed.toLowerCase(Locale.ROOT).startsWith("flows where")) {
             String rest = trimmed.substring("flows where".length()).trim();
             return ALIASES.get("flows.where") + " " + rest;
         }
-        // detect syn-scan ...
         if (trimmed.toLowerCase(Locale.ROOT).startsWith("detect syn-scan")) {
             String rest = trimmed.substring("detect syn-scan".length()).trim();
             return ALIASES.get("detect.syn-scan") + (rest.isEmpty() ? "" : " " + rest);
         }
-        // detect exfil ...
         if (trimmed.toLowerCase(Locale.ROOT).startsWith("detect exfil")) {
             String rest = trimmed.substring("detect exfil".length()).trim();
             return ALIASES.get("detect.exfil") + (rest.isEmpty() ? "" : " " + rest);
         }
-        // dns rare ...
         if (trimmed.toLowerCase(Locale.ROOT).startsWith("dns rare")) {
             String rest = trimmed.substring("dns rare".length()).trim();
             return ALIASES.get("dns.rare") + (rest.isEmpty() ? "" : " " + rest);
         }
-        // http suspicious ...
         if (trimmed.toLowerCase(Locale.ROOT).startsWith("http suspicious")) {
             String rest = trimmed.substring("http suspicious".length()).trim();
             return ALIASES.get("http.suspicious") + (rest.isEmpty() ? "" : " " + rest);
@@ -297,64 +221,202 @@ public class Main extends Application {
         return tail.isEmpty() ? canonical : (canonical + " " + tail);
     }
 
-    private void printBanner() {
-        appendOut("Terminal ready. Drop JSON files into ./commands and type 'help'.");
-    }
-
-    private void appendPrompt(String cmd) {
-        String pfx = (settings.prompt == null || settings.prompt.isBlank()) ? "λ" : settings.prompt;
-        Text prompt = new Text(pfx + " ");
-        prompt.getStyleClass().add("prompt");
-        Text text = new Text(cmd + System.lineSeparator());
-        text.getStyleClass().add("inputline");
-        output.getChildren().addAll(prompt, text);
-        scrollToBottom();
-    }
-
-    private void appendOut(String s) {
-        if (settings.showTimestamps) {
-            s = "[" + LocalTime.now().format(tsFmt) + "] " + s;
-        }
-        Text t = new Text(s + System.lineSeparator());
-        t.getStyleClass().add("line");
-        output.getChildren().add(t);
-        scrollToBottom();
-    }
-
-    private void appendErr(String s) {
-        if (settings.beepOnError) {
-            try { java.awt.Toolkit.getDefaultToolkit().beep(); } catch (Throwable ignored) {}
-        }
-        Text t = new Text(s + System.lineSeparator());
-        t.getStyleClass().add("error");
-        output.getChildren().add(t);
-        scrollToBottom();
-    }
-
-    private void scrollToBottom() {
-        if (!settings.autoScroll) return;
-        output.requestLayout();
-        scroll.layout();
-        scroll.setVvalue(1.0);
-    }
-
-    /** Apply colors, font size, and window flags from Settings */
-    private void applySettings(Stage stage) {
-        if (output == null || output.getScene() == null) return;
-        String style = String.format(
-                "-fx-font-size: %dpx; -fx-bg: %s; -fx-fg: %s; -fx-muted: %s;",
-                settings.fontSize, settings.bg, settings.fg, settings.border
-        );
-        output.getScene().getRoot().setStyle(style);
-        output.getScene().setFill(Color.web(settings.bg));
-        stage.setAlwaysOnTop(settings.alwaysOnTop);
-    }
-
     public static void main(String[] args) { launch(args); }
 
-    /* =======================================================================
-       ===================  EMBEDDED NETWORK HANDLERS  =======================
-       ======================================================================= */
+    // =========================================================================
+    //                       Terminal Session (one Tab)
+    // =========================================================================
+    private final class TerminalSession {
+        private final TextFlow output = new TextFlow();
+        private final ScrollPane scroll = new ScrollPane(output);
+        private final TextField input = new TextField();
+        private final BorderPane root = new BorderPane();
+
+        // per-tab history
+        private final List<String> history = new ArrayList<>();
+        private int histPos = 0;
+
+        // per-tab command registry
+        private final CommandRegistry registry;
+
+        // a session-local view of settings (copy)
+        private Settings settingsRef;
+
+        TerminalSession(Settings initial) {
+            this.settingsRef = initial;
+
+            output.getStyleClass().add("output");
+            output.setLineSpacing(4);
+            scroll.setFitToWidth(true);
+            scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+            scroll.getStyleClass().add("scroll");
+            input.getStyleClass().add("input");
+            input.setPromptText("type a command, e.g. help");
+
+            VBox bottom = new VBox(input);
+            bottom.setPadding(new Insets(8));
+            root.setCenter(scroll);
+            root.setBottom(bottom);
+
+            // Terminal I/O
+            TerminalIO io = new TerminalIO() {
+                @Override public void out(String line)  { appendOut(line); }
+                @Override public void err(String line)  { appendErr(line); }
+                @Override public void clear()           { output.getChildren().clear(); printBanner(); }
+                @Override public void exit()            { clear(); }
+            };
+
+            // Registry + handlers (per tab)
+            registry = new CommandRegistry(Path.of("commands"));
+            registry.registerHandler(new BuiltinHandlers.Echo());
+            registry.registerHandler(new BuiltinHandlers.Time());
+            registry.registerHandler(new BuiltinHandlers.Clear());
+            registry.registerHandler(new BuiltinHandlers.Exit());
+
+            // Network pack
+            registry.registerHandler(new NetHandlers.PcapLoad());
+            registry.registerHandler(new NetHandlers.IndexBuild());
+            registry.registerHandler(new NetHandlers.Filter());
+            registry.registerHandler(new NetHandlers.TopTalkers());
+            registry.registerHandler(new NetHandlers.Timeline());
+            registry.registerHandler(new NetHandlers.FlowsWhere());
+            registry.registerHandler(new NetHandlers.DetectSynScan());
+            registry.registerHandler(new NetHandlers.DetectExfil()); // robust sliding window
+            registry.registerHandler(new NetHandlers.DnsRare());
+            registry.registerHandler(new NetHandlers.Graph());
+            registry.registerHandler(new NetHandlers.HttpSuspicious());
+            registry.registerHandler(new NetHandlers.Export());
+            registry.registerHandler(new NetHandlers.Note());
+            registry.registerHandler(new NetHandlers.MakeDemo()); // optional demo generator
+
+            try { registry.loadAll(); }
+            catch (Exception ex) { io.err("Failed to load commands: " + ex.getMessage()); }
+
+            // Input handlers
+            input.setOnAction(e -> handleEnter(io));
+            input.setOnKeyPressed(e -> {
+                if (e.isControlDown() && e.getCode() == KeyCode.L) { io.clear(); e.consume(); return; }
+                if (e.isControlDown() && e.getCode() == KeyCode.R) {
+                    try { registry.loadAll(); io.out("Commands reloaded."); }
+                    catch (Exception ex) { io.err("Reload failed: " + ex.getMessage()); }
+                    e.consume(); return;
+                }
+                if (e.getCode() == KeyCode.UP) {
+                    if (!history.isEmpty()) {
+                        if (histPos > 0) histPos--;
+                        input.setText(history.get(histPos));
+                        input.positionCaret(input.getText().length());
+                    }
+                    e.consume();
+                } else if (e.getCode() == KeyCode.DOWN) {
+                    if (!history.isEmpty()) {
+                        if (histPos < history.size() - 1) {
+                            histPos++;
+                            input.setText(history.get(histPos));
+                            input.positionCaret(input.getText().length());
+                        } else {
+                            histPos = history.size();
+                            input.clear();
+                        }
+                    }
+                    e.consume();
+                }
+            });
+
+            applySettings(settingsRef); // per-tab styling
+            printBanner();
+            appendOut("Loaded commands: " + String.join(", ", registry.definedCommands()));
+            appendOut("Type 'help' for a list, 'reload' after editing JSON, or 'exit' to clear this tab.");
+        }
+
+        BorderPane getRoot() { return root; }
+        void focusInput() { input.requestFocus(); }
+        void dispose() { /* keep if you later persist per-tab state */ }
+
+        void applySettings(Settings s) {
+            this.settingsRef = s;
+            String style = String.format(
+                    "-fx-font-size: %dpx; -fx-bg: %s; -fx-fg: %s; -fx-muted: %s;",
+                    s.fontSize, s.bg, s.fg, s.border
+            );
+            root.setStyle(style);
+            if (root.getScene() != null) root.getScene().setFill(Color.web(s.bg));
+        }
+
+        private void printBanner() { appendOut("Terminal ready. Drop JSON files into ./commands and type 'help'."); }
+
+        private void appendPrompt(String cmd) {
+            String pfx = (settingsRef.prompt == null || settingsRef.prompt.isBlank()) ? "λ" : settingsRef.prompt;
+            Text prompt = new Text(pfx + " ");
+            prompt.getStyleClass().add("prompt");
+            Text text = new Text(cmd + System.lineSeparator());
+            text.getStyleClass().add("inputline");
+            output.getChildren().addAll(prompt, text);
+            scrollToBottom();
+        }
+
+        private void appendOut(String s) {
+            if (settingsRef.showTimestamps) s = "[" + LocalTime.now().format(tsFmt) + "] " + s;
+            Text t = new Text(s + System.lineSeparator());
+            t.getStyleClass().add("line");
+            output.getChildren().add(t);
+            scrollToBottom();
+        }
+
+        private void appendErr(String s) {
+            if (settingsRef.beepOnError) { try { java.awt.Toolkit.getDefaultToolkit().beep(); } catch (Throwable ignored) {} }
+            Text t = new Text(s + System.lineSeparator());
+            t.getStyleClass().add("error");
+            output.getChildren().add(t);
+            scrollToBottom();
+        }
+
+        private void scrollToBottom() {
+            if (!settingsRef.autoScroll) return;
+            output.requestLayout();
+            scroll.layout();
+            scroll.setVvalue(1.0);
+        }
+
+        // same alias + multi-command support as before
+        private void handleEnter(TerminalIO io) {
+            String line = input.getText();
+            if (line == null) return;
+            String full = line.trim();
+            input.clear();
+            if (full.isEmpty()) return;
+
+            String[] cmds = Arrays.stream(full.split("\\s*;\\s*"))
+                    .filter(s -> s != null && !s.isBlank())
+                    .toArray(String[]::new);
+
+            for (String rawCmd : cmds) {
+                appendPrompt(rawCmd);
+                history.add(rawCmd);
+                histPos = history.size();
+
+                String rewritten = rewriteAlias(rawCmd);
+
+                if (rewritten.equalsIgnoreCase("help")) {
+                    io.out("Available commands: " + String.join(", ", registry.definedCommands()));
+                    io.out("Usage: see each JSON file's 'usage' field (e.g., echo <text>)");
+                    continue;
+                }
+                if (rewritten.equalsIgnoreCase("reload")) {
+                    try { registry.loadAll(); io.out("Commands reloaded."); }
+                    catch (Exception ex) { io.err("Reload failed: " + ex.getMessage()); }
+                    continue;
+                }
+
+                registry.dispatch(rewritten, io);
+            }
+            scrollToBottom();
+        }
+    }
+
+    // =========================================================================
+    //                   Embedded Network Handlers (Net pack)
+    // =========================================================================
     public static final class NetHandlers {
 
         // --------- In-memory store ----------
@@ -379,14 +441,14 @@ public class Main extends Application {
         static final class Store {
             static Path loadedCsv = null;
             static final List<Flow> all = new ArrayList<>();
-            static Predicate<Flow> activeFilter = f->true;
+            static java.util.function.Predicate<Flow> activeFilter = f->true;
             static final List<Flow> lastResult = new ArrayList<>();
             static final List<String> notes = new ArrayList<>();
             static void setResult(Collection<Flow> r){ lastResult.clear(); lastResult.addAll(r); }
             static void clearIndex(){ all.clear(); }
         }
 
-        // --------- CSV helpers ----------
+        // --------- CSV helpers (comment-tolerant) ----------
         static final class CSV {
             static List<String> header;
             static Map<String,Integer> index;
@@ -397,25 +459,37 @@ public class Main extends Application {
                 try (var br = java.nio.file.Files.newBufferedReader(path)) {
                     String line;
                     while ((line = br.readLine()) != null) {
+                        // strip trailing comments (not inside quotes)
+                        int hash = -1; boolean inQ=false;
+                        for (int i=0;i<line.length();i++){
+                            char c=line.charAt(i);
+                            if (c=='"') inQ = !inQ;
+                            else if (c=='#' && !inQ) { hash=i; break; }
+                        }
+                        if (hash>=0) line = line.substring(0, hash);
+                        line = line.trim();
                         if (line.isBlank()) continue;
+
                         if (header == null) {
                             header = splitCsv(line);
                             index = new HashMap<>();
-                            for (int i=0;i<header.size();i++) index.put(header.get(i), i);
+                            for (int i=0;i<header.size();i++) index.put(header.get(i).trim(), i);
                             continue;
                         }
+
                         List<String> cols = splitCsv(line);
                         double ts = parseD(cols, "ts", 0d);
-                        String src = get(cols,"src","");
-                        String dst = get(cols,"dst","");
+                        String src = get(cols,"src","").trim();
+                        String dst = get(cols,"dst","").trim();
                         int sport = (int) parseL(cols,"sport",0);
                         int dport = (int) parseL(cols,"dport",0);
                         int proto = (int) parseL(cols,"proto",0);
                         long bytes = parseL(cols,"bytes",0);
                         long pkts  = parseL(cols,"pkts",1);
-                        String flags = get(cols,"tcp_flags","");
-                        String qn = get(cols,"dns_qname","");
-                        String rc = get(cols,"dns_rcode","");
+                        String flags = get(cols,"tcp_flags","").trim();
+                        String qn = get(cols,"dns_qname","").trim();
+                        String rcRaw = get(cols,"dns_rcode","").trim();
+                        String rc = rcRaw.replaceAll("\\D",""); // keep only digits
                         Store.all.add(new Flow(ts,src,dst,sport,dport,proto,bytes,pkts,flags,qn,rc));
                     }
                 }
@@ -448,28 +522,28 @@ public class Main extends Application {
         }
 
         // --------- Filter language ----------
-        static Predicate<Flow> parseFilter(String expr){
+        static java.util.function.Predicate<Flow> parseFilter(String expr){
             if (expr==null || expr.isBlank()) return f->true;
             Deque<String> t = new ArrayDeque<>(Arrays.asList(expr.replace("(", " ( ").replace(")", " ) ").trim().split("\\s+")));
             return parseTokens(t);
         }
-        static Predicate<Flow> parseTokens(Deque<String> q){
-            Predicate<Flow> acc = term(q);
+        static java.util.function.Predicate<Flow> parseTokens(Deque<String> q){
+            java.util.function.Predicate<Flow> acc = term(q);
             while(!q.isEmpty()){
                 String op = q.peek().toLowerCase();
                 if ("and".equals(op) || "or".equals(op)){
                     q.poll();
-                    Predicate<Flow> rhs = term(q);
+                    java.util.function.Predicate<Flow> rhs = term(q);
                     acc = "and".equals(op) ? acc.and(rhs) : acc.or(rhs);
                 } else break;
             }
             return acc;
         }
-        static Predicate<Flow> term(Deque<String> q){
+        static java.util.function.Predicate<Flow> term(Deque<String> q){
             String t = q.poll();
             if (t==null) return f->true;
             if ("(".equals(t)){
-                Predicate<Flow> inner = parseTokens(q);
+                java.util.function.Predicate<Flow> inner = parseTokens(q);
                 q.poll(); // ')'
                 return inner;
             }
@@ -491,7 +565,7 @@ public class Main extends Application {
             return f->true;
         }
         static String strip(String s){ if (s==null) return ""; return s.replaceAll("^\"|\"$", ""); }
-        static Predicate<Flow> testEq(String key, String val){
+        static java.util.function.Predicate<Flow> testEq(String key, String val){
             return f -> switch (key.toLowerCase()) {
                 case "proto" -> Integer.toString(f.proto).equals(val) ||
                         ("tcp".equalsIgnoreCase(val) && f.isTCP()) ||
@@ -503,7 +577,7 @@ public class Main extends Application {
                 default -> true;
             };
         }
-        static Predicate<Flow> testIn(String key, List<String> vals){
+        static java.util.function.Predicate<Flow> testIn(String key, List<String> vals){
             return f -> switch (key.toLowerCase()) {
                 case "src" -> vals.contains(f.src);
                 case "dst" -> vals.contains(f.dst);
@@ -595,8 +669,7 @@ public class Main extends Application {
                 try {
                     CSV.load(Store.loadedCsv);
                     long dt = System.currentTimeMillis() - t0;
-                    io.out(String.format("Index built: %,d flows in %.1fs",
-                            Store.all.size(), dt/1000.0));
+                    io.out(String.format("Index built: %,d flows in %.1fs", Store.all.size(), dt/1000.0));
                     Store.setResult(Store.all);
                 } catch (Exception e){
                     io.err("index build failed: " + e.getMessage());
@@ -671,7 +744,7 @@ public class Main extends Application {
                     if (i>=0) expr = r.substring(i+"where".length()).trim();
                     expr = stripQuotes(expr);
                 }
-                Predicate<Flow> pred = parseFilter(expr).and(Store.activeFilter);
+                java.util.function.Predicate<Flow> pred = parseFilter(expr).and(Store.activeFilter);
                 List<Flow> out = new ArrayList<>();
                 for (Flow f: Store.all) if (pred.test(f)) out.add(f);
                 Store.setResult(out);
@@ -723,7 +796,7 @@ public class Main extends Application {
             }
         }
 
-        // net:detect.exfil  ->  detect exfil <host> [window=600] [thrMB=50]
+        // net:detect.exfil  ->  detect exfil <host> [window=600] [thrMB=50]  (sliding window)
         public static final class DetectExfil implements CommandHandler {
             @Override public String id() { return "net:detect.exfil"; }
             @Override public void execute(CommandCall call, TerminalIO io) {
@@ -739,21 +812,31 @@ public class Main extends Application {
                 long thrMB = getLong(call,"thrMB",50);
                 long thrBytes = thrMB*1024L*1024L;
 
-                NavigableMap<Long, Long> bucks = new TreeMap<>();
+                List<long[]> points = new ArrayList<>(); // [t, bytes]
                 for (Flow f : Store.all){
                     if (!Store.activeFilter.test(f)) continue;
                     if (!host.equals(f.src)) continue;
                     if (f.dst.startsWith("10.")) continue; // naive internal check
-                    long t = (long)f.ts;
-                    bucks.put(t, bucks.getOrDefault(t,0L)+f.bytes);
+                    points.add(new long[]{ (long)f.ts, f.bytes });
                 }
+                if (points.isEmpty()){
+                    io.out("No external egress for " + host + " under current filter.");
+                    return;
+                }
+                points.sort(Comparator.comparingLong(a -> a[0]));
+
+                Deque<long[]> q = new ArrayDeque<>();
+                long sum = 0;
                 boolean hit=false;
-                for (Long t : new ArrayList<>(bucks.keySet())){
-                    long start = t-window;
-                    long sum = 0;
-                    for (long v : bucks.subMap(start,true,t,true).values()) sum += v;
+                for (long[] p : points){
+                    long t = p[0], b = p[1];
+                    q.addLast(p); sum += b;
+                    while (!q.isEmpty() && q.peekFirst()[0] < t - window) {
+                        sum -= q.removeFirst()[1];
+                    }
                     if (sum >= thrBytes){
-                        io.out(String.format("EXFIL suspected: %s bytes=%,d (>= %,d) in last %ds ending at %s",
+                        io.out(String.format(
+                                "EXFIL suspected: %s  bytes=%,d (>= %,d)  window=%ds  until=%s",
                                 host, sum, thrBytes, window, fmtTs(t)));
                         hit=true; break;
                     }
@@ -799,7 +882,7 @@ public class Main extends Application {
                     if (q1>=0 && q2>q1) expr = r.substring(q1+1,q2);
                 }
                 if (expr==null) expr="";
-                Predicate<Flow> pred = parseFilter(expr).and(Store.activeFilter);
+                java.util.function.Predicate<Flow> pred = parseFilter(expr).and(Store.activeFilter);
                 Set<String> edges = new LinkedHashSet<>();
                 for (Flow f: Store.all){
                     if (!pred.test(f)) continue;
@@ -817,7 +900,7 @@ public class Main extends Application {
         public static final class HttpSuspicious implements CommandHandler {
             @Override public String id() { return "net:http.suspicious"; }
             @Override public void execute(CommandCall call, TerminalIO io) {
-                io.out("HTTP suspicious: stub. Add UA/URI/SNI to CSV to enable richer rules.");
+                io.out("HTTP suspicious: stub. Add UA/URI/SNI fields in CSV to enable richer rules.");
             }
         }
 
@@ -863,6 +946,39 @@ public class Main extends Application {
                 if (text.isBlank()){ io.err("usage: note \"text\""); return; }
                 Store.notes.add(text);
                 io.out("Noted: " + text);
+            }
+        }
+
+        // net:make_demo  ->  demo make file="demo.csv"   (optional generator)
+        public static final class MakeDemo implements CommandHandler {
+            @Override public String id() { return "net:make_demo"; }
+            @Override public void execute(CommandCall call, TerminalIO io) {
+                String file = get(call, "file", "day1_flows_demo.csv");
+                long t0 = System.currentTimeMillis()/1000L; // epoch seconds
+                try (var bw = new java.io.BufferedWriter(new java.io.FileWriter(file))) {
+                    bw.write("ts,src,dst,sport,dport,proto,bytes,pkts,tcp_flags,dns_qname,dns_rcode\n");
+                    bw.write((t0)   +",10.1.2.10,10.1.2.23,12345,445,6,820,1,0x18,,\n");
+                    bw.write((t0+5) +",10.1.2.10,10.1.2.23,12345,445,6,840,1,0x18,,\n");
+                    bw.write((t0+60) +",10.1.2.23,8.8.8.8,51522,443,6,1048576,5,0x18,,\n");
+                    bw.write((t0+120)+",10.1.2.23,8.8.4.4,51522,443,6,1572864,7,0x18,,\n");
+                    bw.write((t0+180)+",10.1.2.23,1.1.1.1,51522,443,6,943718,4,0x18,,\n");
+                    bw.write((t0+240)+",10.1.2.23,9.9.9.9,51522,443,6,524288,3,0x18,,\n");
+                    int[] ports = {22,23,25,80,110,135,139,143,443,445,8080};
+                    for (int i=0;i<ports.length;i++) {
+                        bw.write((t0+300+i)+",10.1.2.50,10.1.2."+ (20+i) +",53000,"+ports[i]+",6,60,1,0x02,,\n");
+                    }
+                    bw.write((t0+400)+",10.1.2.31,10.1.2.53,53100,53,17,90,1,,odd1.bad.labs,3\n");
+                    bw.write((t0+405)+",10.1.2.31,10.1.2.53,53101,53,17,90,1,,odd2.bad.labs,3\n");
+                    bw.write((t0+410)+",10.1.2.31,10.1.2.53,53102,53,17,90,1,,www.google.com,0\n");
+                    bw.write((t0+415)+",10.1.2.31,10.1.2.53,53103,53,17,90,1,,assets.cloudflare.com,0\n");
+                    bw.write((t0+500)+",10.1.2.40,10.1.2.41,54000,3389,6,50000,10,0x18,,\n");
+                    bw.write((t0+560)+",10.1.2.41,10.1.2.40,3389,54000,6,52000,10,0x18,,\n");
+                } catch (Exception e) {
+                    io.err("demo make failed: "+e.getMessage());
+                    return;
+                }
+                io.out("Demo CSV written: "+file);
+                io.out("Run: pcap load file=\""+file+"\"; index build; top by=bytes limit=5");
             }
         }
     }
