@@ -1,0 +1,67 @@
+[
+    {
+    "name": "clear",
+    "description": "Clear the screen",
+    "usage": "clear",
+    "handler": "builtin:clear",
+    "args": []
+    },{
+    "name": "echo",
+    "description": "Print text",
+    "usage": "echo <text>",
+    "handler": "builtin:echo",
+    "args": [
+        { "name": "text", "type": "string", "required": true, "variadic": true }
+    ]
+    },{
+    "name": "exit",
+    "description": "Close the app",
+    "usage": "exit",
+    "handler": "builtin:exit",
+    "args": []
+    },{
+    "name": "hi",
+    "description": "Say hello",
+    "usage": "hi",
+    "handler": "builtin:echo",
+    "args": [
+        { "name": "text", "type": "string", "required": false, "defaultValue": "Hello!" }
+    ],
+    "aliases": ["hello"]
+    },{
+    "name": "ls",
+    "description": "List directory contents",
+    "usage": "ls [options] [path]",
+    "handler": "builtin:ls",
+    "args": [
+        { "name": "options", "type": "array", "required": false },
+        { "name": "path", "type": "string", "required": false }
+    ],
+    "aliases": ["list"]
+    },{
+    "name": "mkdir",
+    "description": "Create a new directory",
+    "usage": "mkdir [options] <path>",
+    "handler": "builtin:mkdir",
+    "args": [
+        { "name": "options", "type": "array", "required": false },
+        { "name": "path", "type": "string", "required": true }
+    ],
+    "aliases": ["md"]
+    },{
+    "name": "rmdi",
+    "description": "Show command history",
+    "usage": "history",
+    "handler": "builtin:history",
+    "args": [],
+    "aliases": ["hello"]
+    },{
+    "name": "time",
+    "description": "Show current time",
+    "usage": "time",
+    "handler": "builtin:time",
+    "args": []
+    }
+
+]
+
