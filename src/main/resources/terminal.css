@@ -1,25 +1,50 @@
-/* Title bar */
+/* ===========================
+   Hacker green / black — dynamic with looked-up colors
+   Vars provided by Java:
+     -fx-bg     : background color
+     -fx-fg     : primary/accent (neon)
+     -fx-muted  : border/subtle lines
+   This sheet derives everything else from those.
+   =========================== */
+
+/* ---------- Global looked-up vars ---------- */
+.root {
+  -fx-background-color: -fx-bg;
+  -fx-text-fill: -fx-fg;
+
+  /* derived helpers */
+  -fx-fg-dim: derive(-fx-fg, -55%);               /* placeholder/dim text */
+  -fx-fg-soft: derive(-fx-fg, 70%);               /* soft accents */
+  -fx-tab-hover: ladder(-fx-bg, -fx-fg 10%, -fx-bg 90%); /* faint green on hover */
+}
+
+/* ensure common containers inherit bg */
+.border-pane, .vbox, .text-flow, .pane, .hbox { -fx-background-color: -fx-bg; }
+
+/* ---------- Title bar ---------- */
 .titlebar {
-  -fx-background-color: #0b0f10;
-  -fx-border-color: #111518;
+  -fx-background-color: -fx-bg;
+  -fx-border-color: -fx-muted;
   -fx-border-width: 0 0 1 0;
   -fx-padding: 6 10;
 }
-
 .titlebar .label {
-  -fx-text-fill: #01f656;
+  -fx-text-fill: -fx-fg;
   -fx-font-weight: bold;
   -fx-font-family: "Consolas","Cascadia Mono","JetBrains Mono","Menlo",monospace;
+  -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 8, 0.2, 0, 0);
 }
 
-/* Title bar buttons */
+/* Title bar buttons (incl. +) */
 .titlebar .button {
   -fx-background-color: transparent;
-  -fx-text-fill: #01f656;
+  -fx-text-fill: -fx-fg;
   -fx-padding: 4 10;
   -fx-background-insets: 0;
   -fx-border-color: transparent;
   -fx-font-family: "Consolas","Cascadia Mono","JetBrains Mono","Menlo",monospace;
+  -fx-focus-color: transparent;
+  -fx-faint-focus-color: transparent;
 }
 .titlebar .button:hover {
   -fx-background-color: rgba(1, 246, 86, 0.15);
@@ -40,28 +65,16 @@
   -fx-font-size: 16px;
 }
 
-
-
-/* ===========================
-   Global colors / looked-up vars
-   =========================== */
-.root {
-  /* looked-up colors you can reuse below */
-  -fx-bg: #0b0f10;        /* background */
-  -fx-fg: #01f656;        /* primary green */
-  -fx-muted: #111518;     /* subtle borders */
-  -fx-fg-dim: #19924a;    /* dimmed green for prompts/placeholders */
-
-  -fx-background-color: -fx-bg;
-  -fx-text-fill: -fx-fg;  /* affects Labeled controls */
+/* visually separate the + new-tab button */
+.titlebar .button.newtab {
+  -fx-background-radius: 6;
+  -fx-border-radius: 6;
+  -fx-border-color: -fx-muted;
+  -fx-border-width: 1;
+  -fx-padding: 2 8;
 }
 
-/* make all common containers inherit the dark bg */
-.border-pane, .vbox, .text-flow {
-  -fx-background-color: -fx-bg;
-}
-
-/* ScrollPane + its inner pieces (kills the white “little fella”) */
+/* ---------- ScrollPane / Output ---------- */
 .scroll-pane,
 .scroll-pane .viewport,
 .scroll-pane .content,
@@ -71,71 +84,132 @@
   -fx-background-insets: 0;
   -fx-padding: 0;
   -fx-border-color: -fx-muted;
-  -fx-border-width: 0 0 1 0; /* bottom hairline under output */
+  -fx-border-width: 0 0 1 0; /* hairline under output */
 }
+.output { -fx-padding: 16; }
 
-/* Output area */
-.output {
-  -fx-padding: 16;
-  -fx-background-color: -fx-bg;
-}
-
-/* Text input (terminal prompt line) */
+/* ---------- Input line ---------- */
 .input {
   -fx-background-color: -fx-bg;
   -fx-text-fill: -fx-fg;
   -fx-prompt-text-fill: -fx-fg-dim;
   -fx-caret-color: -fx-fg;
-  -fx-highlight-fill: rgba(1, 246, 86, 0.25); /* selection bg */
+  -fx-highlight-fill: rgba(255,255,255,0.12);   /* selection bg */
   -fx-highlight-text-fill: -fx-fg;
 
   -fx-background-insets: 0;
   -fx-border-color: -fx-muted;
-  -fx-border-radius: 6;
-  -fx-background-radius: 6;
+  -fx-border-radius: 8;
+  -fx-background-radius: 8;
   -fx-font-family: "Consolas","Cascadia Mono","JetBrains Mono","Menlo",monospace;
 
-  /* remove bright blue default focus glow */
-  -fx-focus-color: -fx-fg-dim;
+  -fx-focus-color: transparent;
   -fx-faint-focus-color: transparent;
 }
 
-/* Prompt “λ ” */
+/* ---------- Text styles ---------- */
 .prompt {
   -fx-fill: -fx-fg;
   -fx-font-weight: bold;
   -fx-font-family: "Consolas","Cascadia Mono","JetBrains Mono","Menlo",monospace;
-  -fx-font-size: 13px;
+  -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 6, 0.2, 0, 0);
 }
-
-/* Command echo + normal output lines */
 .inputline, .line {
   -fx-fill: -fx-fg;
   -fx-font-family: "Consolas","Cascadia Mono","JetBrains Mono","Menlo",monospace;
-  -fx-font-size: 13px;
 }
-
-/* Errors in red so they stand out on black */
 .error {
   -fx-fill: #ff6b6b;
   -fx-font-family: "Consolas","Cascadia Mono","JetBrains Mono","Menlo",monospace;
-  -fx-font-size: 13px;
 }
 
-/* Dark scrollbars */
-.scroll-bar:horizontal, .scroll-bar:vertical {
+/* ---------- Dark scrollbars ---------- */
+.scroll-bar:horizontal, .scroll-bar:vertical { -fx-background-color: -fx-bg; }
+.scroll-bar .track { -fx-background-color: -fx-bg; }
+.scroll-bar .thumb { -fx-background-color: derive(-fx-bg, 15%); -fx-background-radius: 7; }
+.scroll-bar .increment-button, .scroll-bar .decrement-button { -fx-background-color: -fx-bg; }
+
+/* ===========================
+   BEAUTIFIED TABS (dynamic)
+   =========================== */
+
+/* apply via TabPane.getStyleClass().add("term-tabs") */
+.term-tabs {
   -fx-background-color: -fx-bg;
+  -fx-open-tab-animation: NONE;
+  -fx-close-tab-animation: NONE;
+  -fx-tab-min-height: 22px;   /* slimmer tabs */
+  -fx-tab-max-height: 22px;
+  -fx-tab-min-width: 110px;
 }
-.scroll-bar .track {
+
+.term-tabs .tab-header-area {
   -fx-background-color: -fx-bg;
+  -fx-border-color: -fx-muted;
+  -fx-border-width: 0 0 1 0;
+  -fx-padding: 4 8 0 8;
 }
-.scroll-bar .thumb {
-  -fx-background-color: #2a2f2c;
-  -fx-background-radius: 6;
+.term-tabs .tab-header-background { -fx-background-color: transparent; }
+
+/* default tab look */
+.term-tabs .tab {
+  -fx-background-color: transparent;
+  -fx-background-insets: 0;
+  -fx-background-radius: 9 9 0 0;
+  -fx-padding: 2 10 1 10;
+  -fx-opacity: 0.9;
 }
-.scroll-bar .increment-button, .scroll-bar .decrement-button {
+.term-tabs .tab:hover {
+  -fx-background-color: rgba(255,255,255,0.04); /* faint, works with any color */
+  -fx-opacity: 1.0;
+}
+
+/* selected tab: neon edge + subtle fill derived from accent */
+.term-tabs .tab:selected {
+  -fx-background-color: rgba(255,255,255,0.06);
+  -fx-border-color: -fx-fg;
+  -fx-border-width: 1 1 0 1;
+  -fx-border-radius: 9 9 0 0;
+  -fx-opacity: 1.0;
+}
+.term-tabs .tab .tab-label {
+  -fx-text-fill: -fx-fg;
+  -fx-font-family: "Consolas","Cascadia Mono","JetBrains Mono","Menlo",monospace;
+  -fx-font-size: 11px;
+  -fx-font-weight: bold;
+  -fx-padding: 0 2 0 0;
+}
+.term-tabs .tab:selected .tab-label {
+  -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 10, 0.25, 0, 0);
+}
+
+/* close button = neon "×" glyph (uses -fx-fg) */
+.term-tabs .tab-close-button {
+  -fx-background-color: -fx-fg;
+  -fx-background-insets: 0;
+  -fx-background-radius: 0;
+  -fx-padding: 0;
+  -fx-min-width: 12px;
+  -fx-min-height: 12px;
+  -fx-pref-width: 12px;
+  -fx-pref-height: 12px;
+  -fx-shape: "M0,2 L2,0 L6,4 L10,0 L12,2 L8,6 L12,10 L10,12 L6,8 L2,12 L0,10 L4,6 Z";
+  -fx-opacity: 0.95;
+}
+.term-tabs .tab-close-button:hover  { -fx-background-color: #ff4d4d; -fx-opacity: 1.0; }
+.term-tabs .tab-close-button:pressed{ -fx-background-color: #ff2a2a; }
+.term-tabs .tab:selected .tab-close-button { -fx-background-color: -fx-fg; }
+
+/* content area */
+.term-tabs .tab-content-area {
   -fx-background-color: -fx-bg;
+  -fx-padding: 0;
+  -fx-border-color: -fx-muted;  /* subtle line below tabs */
+  -fx-border-width: 1 0 0 0;
 }
+
+/* keep headers region transparent (no gray bars) */
+.term-tabs .headers-region { -fx-background-color: transparent; }
 
 /* Chat panel styles */
 .chat-panel {

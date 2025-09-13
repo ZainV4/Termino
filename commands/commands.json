@@ -1,0 +1,227 @@
+[
+  {
+    "name": "clear",
+    "description": "Clear the screen",
+    "usage": "clear",
+    "handler": "builtin:clear",
+    "args": []
+  },
+  {
+    "name": "echo",
+    "description": "Print text",
+    "usage": "echo <text>",
+    "handler": "builtin:echo",
+    "args": [
+      { "name": "text", "type": "string", "required": true, "variadic": true }
+    ]
+  },
+  {
+    "name": "exit",
+    "description": "Close the app",
+    "usage": "exit",
+    "handler": "builtin:exit",
+    "args": []
+  },
+  {
+    "name": "hi",
+    "description": "Say hello",
+    "usage": "hi [text]",
+    "handler": "builtin:echo",
+    "args": [
+      { "name": "text", "type": "string", "required": false, "defaultValue": "Hello!" }
+    ],
+    "aliases": ["hello"]
+  },
+  {
+    "name": "ls",
+    "description": "List directory contents",
+    "usage": "ls [options] [path]",
+    "handler": "builtin:ls",
+    "args": [
+      { "name": "options", "type": "array", "required": false },
+      { "name": "path", "type": "string", "required": false }
+    ],
+    "aliases": ["list"]
+  },
+  {
+    "name": "mkdir",
+    "description": "Create a new directory",
+    "usage": "mkdir [options] <path>",
+    "handler": "builtin:mkdir",
+    "args": [
+      { "name": "options", "type": "array", "required": false },
+      { "name": "path", "type": "string", "required": true }
+    ],
+    "aliases": ["md"]
+  },
+  {
+    "name": "history",
+    "description": "Show command history",
+    "usage": "history",
+    "handler": "builtin:history",
+    "args": [],
+    "aliases": []
+  },
+  {
+    "name": "time",
+    "description": "Show current time",
+    "usage": "time",
+    "handler": "builtin:time",
+    "args": []
+  },
+
+
+  {
+    "name": "pcap",
+    "description": "Load a flows CSV or PCAP-derived index",
+    "usage": "pcap load \"flows.csv\"",
+    "handler": "net:pcap",
+    "args": [
+      { "name": "action", "type": "string", "required": true, "enum": ["load"] },
+      { "name": "file",   "type": "string", "required": true }
+    ]
+  },
+  {
+    "name": "index",
+    "description": "Build in-memory index over loaded flows",
+    "usage": "index build",
+    "handler": "net:index",
+    "args": [
+      { "name": "action", "type": "string", "required": true, "enum": ["build"] }
+    ]
+  },
+
+  {
+    "name": "filter",
+    "description": "Set active filter (BPF-ish: proto=tcp and dport=445)",
+    "usage": "filter <expr>",
+    "handler": "net:filter",
+    "args": [
+      { "name": "expr", "type": "string", "required": false }
+    ]
+  },
+  {
+    "name": "top",
+    "description": "Top talkers (by bytes or flows)",
+    "usage": "top talkers [by=bytes|flows] [limit=N]",
+    "handler": "net:top.talkers",
+    "args": [
+      { "name": "subcommand", "type": "string", "required": true, "enum": ["talkers"] },
+      { "name": "by",         "type": "string", "required": false, "defaultValue": "bytes", "enum": ["bytes","flows"] },
+      { "name": "limit",      "type": "integer", "required": false, "defaultValue": 5 }
+    ]
+  },
+  {
+    "name": "timeline",
+    "description": "Time series timeline of a metric",
+    "usage": "timeline bytes per=60",
+    "handler": "net:timeline",
+    "args": [
+      { "name": "metric", "type": "string", "required": false, "defaultValue": "bytes", "enum": ["bytes","flows"] },
+      { "name": "per",    "type": "integer", "required": false, "defaultValue": 60, "minimum": 1 }
+    ]
+  },
+  {
+    "name": "flows",
+    "description": "Print flows matching an expression",
+    "usage": "flows where \"expr\"",
+    "handler": "net:flows.where",
+    "args": [
+      { "name": "subcommand", "type": "string", "required": true, "enum": ["where"] },
+      { "name": "expr",       "type": "string", "required": true }
+    ]
+  },
+
+  {
+    "name": "detect",
+    "description": "Detect SYN scan (fan-out within window)",
+    "usage": "detect syn-scan [src=IP] [window=120] [thr=150]",
+    "handler": "net:detect.syn_scan",
+    "args": [
+      { "name": "mode",   "type": "string", "required": true, "enum": ["syn-scan"] },
+      { "name": "src",    "type": "string", "required": false },
+      { "name": "window", "type": "integer", "required": false, "defaultValue": 120 },
+      { "name": "thr",    "type": "integer", "required": false, "defaultValue": 150 }
+    ]
+  },
+  {
+    "name": "detect",
+    "description": "Detect large outbound transfer (exfiltration)",
+    "usage": "detect exfil <host> [window=600] [thrMB=50]",
+    "handler": "net:detect.exfil",
+    "args": [
+      { "name": "mode",   "type": "string", "required": true, "enum": ["exfil"] },
+      { "name": "host",   "type": "string", "required": true },
+      { "name": "window", "type": "integer", "required": false, "defaultValue": 600 },
+      { "name": "thrMB",  "type": "integer", "required": false, "defaultValue": 50 }
+    ]
+  },
+  {
+    "name": "dns",
+    "description": "List rare DNS names and NXDOMAIN-heavy queries",
+    "usage": "dns rare [min=2]",
+    "handler": "net:dns.rare",
+    "args": [
+      { "name": "mode", "type": "string", "required": true, "enum": ["rare"] },
+      { "name": "min",  "type": "integer", "required": false, "defaultValue": 2 }
+    ]
+  },
+
+  
+  {
+    "name": "graph",
+    "description": "Build a small src↔dst graph from matching flows",
+    "usage": "graph \"expr\"",
+    "handler": "net:graph",
+    "args": [
+      { "name": "expr", "type": "string", "required": true }
+    ]
+  },
+  {
+    "name": "http",
+    "description": "Flag suspicious HTTP (UA/URI rules)",
+    "usage": "http suspicious",
+    "handler": "net:http.suspicious",
+    "args": [
+      { "name": "mode", "type": "string", "required": true, "enum": ["suspicious"] }
+    ]
+  },
+
+  
+  {
+    "name": "export",
+    "description": "Export the current result set to CSV",
+    "usage": "export \"file.csv\"",
+    "handler": "net:export",
+    "args": [
+      { "name": "file", "type": "string", "required": true }
+    ]
+  },
+  {
+    "name": "note",
+    "description": "Attach a note to the current session/report",
+    "usage": "note \"text\"",
+    "handler": "net:note",
+    "args": [
+      { "name": "text", "type": "string", "required": true, "variadic": true }
+    ]
+  },
+  {
+    "name": "alias",
+    "description": "Create or list aliases",
+    "usage": "alias name=\"expansion\"  |  alias",
+    "handler": "builtin:alias",
+    "args": [
+      { "name": "pair", "type": "string", "required": false }
+    ]
+  },
+  {
+    "name": "repeat",
+    "description": "Re-run a command from history by index",
+    "usage": "repeat <N>",
+    "handler": "builtin:repeat",
+    "args": [
+      { "name": "index", "type": "integer", "required": true, "minimum": 0 }
+    ]
+  }
+]
