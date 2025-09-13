@@ -27,10 +27,17 @@
 .titlebar .button:pressed {
   -fx-background-color: rgba(1, 246, 86, 0.25);
 }
+.titlebar .button.active {
+  -fx-background-color: rgba(1, 246, 86, 0.3);
+}
 /* make close feel dangerous on hover */
 .titlebar .button:last-child:hover {
   -fx-background-color: #8b0000;
   -fx-text-fill: white;
+}
+
+.titlebar-button {
+  -fx-font-size: 16px;
 }
 
 
@@ -128,4 +135,94 @@
 }
 .scroll-bar .increment-button, .scroll-bar .decrement-button {
   -fx-background-color: -fx-bg;
+}
+
+/* Chat panel styles */
+.chat-panel {
+  -fx-background-color: #111518;
+  -fx-border-color: #01f656;
+  -fx-border-width: 0 0 0 1;
+  -fx-border-style: solid;
+}
+
+.chat-scroll {
+  -fx-background-color: #0b0f10;
+  -fx-border-color: #2a2f2c;
+  -fx-border-width: 1;
+  -fx-border-radius: 4;
+  -fx-background-radius: 4;
+}
+
+.chat-input {
+  -fx-background-color: #0b0f10;
+  -fx-text-fill: #01f656;
+  -fx-prompt-text-fill: #19924a;
+  -fx-font-family: "Consolas","Cascadia Mono","JetBrains Mono","Menlo",monospace;
+  -fx-border-color: #2a2f2c;
+  -fx-border-radius: 4;
+  -fx-background-radius: 4;
+  -fx-padding: 8 12;
+}
+
+.chat-send-button {
+  -fx-background-color: #19924a;
+  -fx-text-fill: white;
+  -fx-background-radius: 4;
+  -fx-border-radius: 4;
+}
+
+.chat-send-button:hover {
+  -fx-background-color: #01f656;
+  -fx-text-fill: black;
+}
+
+.chat-timestamp {
+  -fx-fill: #666666;
+  -fx-font-size: 11px;
+}
+
+.chat-user-name {
+  -fx-font-weight: bold;
+}
+
+.chat-assistant-name {
+  -fx-font-weight: bold;
+}
+
+.chat-message {
+  -fx-fill: white;
+}
+
+.chat-system-message {
+  -fx-fill: #999999;
+  -fx-font-style: italic;
+  -fx-font-size: 12px;
+}
+
+.separator {
+  -fx-background-color: #2a2f2c;
+  -fx-opacity: 0.6;
+}
+
+/* SplitPane styling for resizable panels */
+.terminal-split-pane {
+  -fx-background-color: -fx-bg;
+  -fx-padding: 0;
+}
+
+.terminal-split-pane > .split-pane-divider {
+  -fx-background-color: #01f656;
+  -fx-padding: 0 1px 0 1px;
+  -fx-opacity: 0.5;
+  -fx-cursor: h-resize;
+}
+
+.terminal-split-pane > .split-pane-divider:hover {
+  -fx-background-color: #01f656;
+  -fx-opacity: 0.8;
+}
+
+.terminal-split-pane > .split-pane-divider:pressed {
+  -fx-background-color: #01f656;
+  -fx-opacity: 1.0;
 }

@@ -14,6 +14,9 @@ dependencies {
 
     // ✅ Gson for JSON parsing
     implementation 'com.google.code.gson:gson:2.11.0'
+    
+    // Cohere official Java client
+    implementation 'com.cohere:cohere-java:+'
 }
 
 application {

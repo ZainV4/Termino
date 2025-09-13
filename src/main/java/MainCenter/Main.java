@@ -2,6 +2,8 @@ package MainCenter;
 
 import javafx.application.Application;
 import javafx.geometry.Insets;
+import javafx.geometry.Orientation;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
@@ -15,6 +17,7 @@ import javafx.stage.StageStyle;
 import MainCenter.Settings.Settings;
 import MainCenter.Settings.SettingsService;
 import MainCenter.Settings.SettingsDialog;
+import MainCenter.chat.ChatPanel;
 
 import MainCenter.handlers.BuiltinHandlers;
 import MainCenter.terminal.CommandRegistry;
@@ -31,7 +34,16 @@ public class Main extends Application {
     private TextFlow output;
     private ScrollPane scroll;
     private TextField input;
-
+    
+    // Chat UI
+    private ChatPanel chatPanel;
+    private BorderPane root;
+    private SplitPane splitPane;
+    private double lastDividerPosition = 0.7; // Default divider position (70% terminal, 30% chat)
+    private boolean chatVisible = false;
+    private Button btnChat;
+    private CheckBox backgroundAnalysisToggle;
+    
     // history
     private final List<String> history = new ArrayList<>();
     private int histPos = 0;
@@ -65,15 +77,28 @@ public class Main extends Application {
         input.getStyleClass().add("input");
         input.setPromptText("type a command, e.g. help");
 
-        BorderPane root = new BorderPane();
+        // Create main layout for terminal
+        root = new BorderPane();
         root.setCenter(scroll);
         VBox bottom = new VBox(input);
         bottom.setPadding(new Insets(8));
         root.setBottom(bottom);
         root.getStyleClass().add("root");
+        
+        // Create the chat panel
+        chatPanel = new ChatPanel();
+        
+        // Create a SplitPane for resizable panels
+        splitPane = new SplitPane();
+        splitPane.setOrientation(Orientation.HORIZONTAL);
+        splitPane.getItems().add(root); // Add terminal as the first item
+        
+        // Initialize divider positions and style
+        splitPane.setDividerPosition(0, 1.0); // Initially terminal takes full width
+        splitPane.getStyleClass().add("terminal-split-pane");
 
         // --- Scene ---
-        Scene scene = new Scene(root, 900, 560);
+        Scene scene = new Scene(splitPane, 900, 560);
         scene.getStylesheets().add(getClass().getResource("/terminal.css").toExternalForm());
         scene.setFill(Color.web("#0b0f10")); // avoid any white flash
 
@@ -83,12 +108,18 @@ public class Main extends Application {
         Label title = new Label(" Terminal ");
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
+        
+        // Add chat button with an icon
+        btnChat = new Button("💬");
+        btnChat.getStyleClass().add("titlebar-button");
+        btnChat.setTooltip(new Tooltip("Open AI Chat Assistant"));
+        
         Button btnSettings = new Button("⚙");
         Button btnMin = new Button("—");
         Button btnMax = new Button("▢");
         Button btnClose = new Button("✕");
 
-        HBox titleBar = new HBox(title, spacer, btnSettings, btnMin, btnMax, btnClose);
+        HBox titleBar = new HBox(title, spacer, btnChat, btnSettings, btnMin, btnMax, btnClose);
         titleBar.getStyleClass().add("titlebar");
         root.setTop(titleBar);
 
@@ -96,6 +127,9 @@ public class Main extends Application {
         btnMin.setOnAction(e -> stage.setIconified(true));
         btnMax.setOnAction(e -> stage.setMaximized(!stage.isMaximized()));
         btnClose.setOnAction(e -> stage.close());
+        
+        // Chat button action
+        btnChat.setOnAction(e -> toggleChatPanel());
 
         // drag window by the bar
         final double[] drag = new double[2];
@@ -188,15 +222,32 @@ public class Main extends Application {
         if (cmd.equalsIgnoreCase("help")) {
             io.out("Available commands: " + String.join(", ", registry.definedCommands()));
             io.out("Usage: see each JSON file's 'usage' field (e.g., echo <text>)");
+            
+            // Send to chat assistant for analysis if enabled
+            if (chatPanel != null) {
+                chatPanel.analyzeCommand(cmd);
+            }
             return;
         }
         if (cmd.equalsIgnoreCase("reload")) {
             try { registry.loadAll(); io.out("Commands reloaded."); }
             catch (Exception ex) { io.err("Reload failed: " + ex.getMessage()); }
+            
+            // Send to chat assistant for analysis if enabled
+            if (chatPanel != null) {
+                chatPanel.analyzeCommand(cmd);
+            }
             return;
         }
 
+        // Dispatch the command
         registry.dispatch(cmd, io);
+        
+        // Send to chat assistant for analysis if enabled
+        if (chatPanel != null) {
+            chatPanel.analyzeCommand(cmd);
+        }
+        
         scrollToBottom();
     }
 
@@ -247,9 +298,33 @@ public class Main extends Application {
                 "-fx-font-size: %dpx; -fx-bg: %s; -fx-fg: %s; -fx-muted: %s;",
                 settings.fontSize, settings.bg, settings.fg, settings.border
         );
-        output.getScene().getRoot().setStyle(style);
+        splitPane.setStyle(style);
         output.getScene().setFill(Color.web(settings.bg));
         stage.setAlwaysOnTop(settings.alwaysOnTop);
+    }
+    
+    /**
+     * Toggles the visibility of the chat panel by adding/removing it from the SplitPane
+     */
+    private void toggleChatPanel() {
+        if (chatVisible) {
+            // Hide chat panel
+            lastDividerPosition = splitPane.getDividerPositions()[0]; // Save position before removing
+            splitPane.getItems().remove(chatPanel);
+            chatVisible = false;
+            btnChat.getStyleClass().remove("active");
+        } else {
+            // Show chat panel
+            splitPane.getItems().add(chatPanel);
+            chatVisible = true;
+            btnChat.getStyleClass().add("active");
+            
+            // Set the divider to the last position or default
+            splitPane.setDividerPosition(0, lastDividerPosition);
+            
+            // Focus on chat input when opened
+            chatPanel.focusInput();
+        }
     }
 
     public static void main(String[] args) { launch(args); }
