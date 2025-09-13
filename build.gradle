@@ -7,28 +7,23 @@ repositories {
     mavenCentral()
 }
 
-dependencies {
-    // JavaFX (controls + fxml)
-    implementation 'org.openjfx:javafx-controls:21'
-    implementation 'org.openjfx:javafx-fxml:21'
-
-    // ✅ Gson for JSON parsing
-    implementation 'com.google.code.gson:gson:2.11.0'
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21) // Java 21 LTS
+    }
 }
 
 application {
     mainClass = 'MainCenter.Main'
 }
 
-
-
-java {
-    toolchain { languageVersion = JavaLanguageVersion.of(21) }
+javafx {
+    version = '21.0.3'
+    modules = [ 'javafx.controls', 'javafx.graphics', 'javafx.fxml' ]
 }
 
-javafx {
-    version = '23.0.1'
-    modules = [ 'javafx.controls', 'javafx.fxml' ] // add 'javafx.web' if you import javafx.scene.web
+dependencies {
+    implementation 'com.google.code.gson:gson:2.11.0'
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -38,7 +33,10 @@ tasks.withType(JavaCompile).configureEach {
 sourceSets {
     main {
         java {
-            srcDirs = ["src/main"]  // instead of "src/main/java"
+            srcDirs = ['src/main/java']
+        }
+        resources {
+            srcDirs = ['src/main/resources']
         }
     }
 }
