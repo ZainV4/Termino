@@ -1,0 +1,9 @@
+﻿{
+  "name": "echo",
+  "description": "Print text",
+  "usage": "echo <text>",
+  "handler": "builtin:echo",
+  "args": [
+    { "name": "text", "type": "string", "required": true, "variadic": true }
+  ]
+}

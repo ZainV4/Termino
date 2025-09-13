@@ -1,0 +1,7 @@
+﻿{
+  "name": "time",
+  "description": "Show current time",
+  "usage": "time",
+  "handler": "builtin:time",
+  "args": []
+}

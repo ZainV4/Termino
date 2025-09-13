@@ -1,0 +1,131 @@
+/* Title bar */
+.titlebar {
+  -fx-background-color: #0b0f10;
+  -fx-border-color: #111518;
+  -fx-border-width: 0 0 1 0;
+  -fx-padding: 6 10;
+}
+
+.titlebar .label {
+  -fx-text-fill: #01f656;
+  -fx-font-weight: bold;
+  -fx-font-family: "Consolas","Cascadia Mono","JetBrains Mono","Menlo",monospace;
+}
+
+/* Title bar buttons */
+.titlebar .button {
+  -fx-background-color: transparent;
+  -fx-text-fill: #01f656;
+  -fx-padding: 4 10;
+  -fx-background-insets: 0;
+  -fx-border-color: transparent;
+  -fx-font-family: "Consolas","Cascadia Mono","JetBrains Mono","Menlo",monospace;
+}
+.titlebar .button:hover {
+  -fx-background-color: rgba(1, 246, 86, 0.15);
+}
+.titlebar .button:pressed {
+  -fx-background-color: rgba(1, 246, 86, 0.25);
+}
+/* make close feel dangerous on hover */
+.titlebar .button:last-child:hover {
+  -fx-background-color: #8b0000;
+  -fx-text-fill: white;
+}
+
+
+
+/* ===========================
+   Global colors / looked-up vars
+   =========================== */
+.root {
+  /* looked-up colors you can reuse below */
+  -fx-bg: #0b0f10;        /* background */
+  -fx-fg: #01f656;        /* primary green */
+  -fx-muted: #111518;     /* subtle borders */
+  -fx-fg-dim: #19924a;    /* dimmed green for prompts/placeholders */
+
+  -fx-background-color: -fx-bg;
+  -fx-text-fill: -fx-fg;  /* affects Labeled controls */
+}
+
+/* make all common containers inherit the dark bg */
+.border-pane, .vbox, .text-flow {
+  -fx-background-color: -fx-bg;
+}
+
+/* ScrollPane + its inner pieces (kills the white “little fella”) */
+.scroll-pane,
+.scroll-pane .viewport,
+.scroll-pane .content,
+.scroll-pane .corner,
+.scroll {
+  -fx-background-color: -fx-bg;
+  -fx-background-insets: 0;
+  -fx-padding: 0;
+  -fx-border-color: -fx-muted;
+  -fx-border-width: 0 0 1 0; /* bottom hairline under output */
+}
+
+/* Output area */
+.output {
+  -fx-padding: 16;
+  -fx-background-color: -fx-bg;
+}
+
+/* Text input (terminal prompt line) */
+.input {
+  -fx-background-color: -fx-bg;
+  -fx-text-fill: -fx-fg;
+  -fx-prompt-text-fill: -fx-fg-dim;
+  -fx-caret-color: -fx-fg;
+  -fx-highlight-fill: rgba(1, 246, 86, 0.25); /* selection bg */
+  -fx-highlight-text-fill: -fx-fg;
+
+  -fx-background-insets: 0;
+  -fx-border-color: -fx-muted;
+  -fx-border-radius: 6;
+  -fx-background-radius: 6;
+  -fx-font-family: "Consolas","Cascadia Mono","JetBrains Mono","Menlo",monospace;
+
+  /* remove bright blue default focus glow */
+  -fx-focus-color: -fx-fg-dim;
+  -fx-faint-focus-color: transparent;
+}
+
+/* Prompt “λ ” */
+.prompt {
+  -fx-fill: -fx-fg;
+  -fx-font-weight: bold;
+  -fx-font-family: "Consolas","Cascadia Mono","JetBrains Mono","Menlo",monospace;
+  -fx-font-size: 13px;
+}
+
+/* Command echo + normal output lines */
+.inputline, .line {
+  -fx-fill: -fx-fg;
+  -fx-font-family: "Consolas","Cascadia Mono","JetBrains Mono","Menlo",monospace;
+  -fx-font-size: 13px;
+}
+
+/* Errors in red so they stand out on black */
+.error {
+  -fx-fill: #ff6b6b;
+  -fx-font-family: "Consolas","Cascadia Mono","JetBrains Mono","Menlo",monospace;
+  -fx-font-size: 13px;
+}
+
+/* Dark scrollbars */
+.scroll-bar:horizontal, .scroll-bar:vertical {
+  -fx-background-color: -fx-bg;
+}
+.scroll-bar .track {
+  -fx-background-color: -fx-bg;
+}
+.scroll-bar .thumb {
+  -fx-background-color: #2a2f2c;
+  -fx-background-radius: 6;
+}
+.scroll-bar .increment-button, .scroll-bar .decrement-button {
+  -fx-background-color: -fx-bg;
+}

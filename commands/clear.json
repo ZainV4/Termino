@@ -1,0 +1,7 @@
+﻿{
+  "name": "clear",
+  "description": "Clear the screen",
+  "usage": "clear",
+  "handler": "builtin:clear",
+  "args": []
+}

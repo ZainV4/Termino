@@ -1,0 +1,10 @@
+﻿{
+  "name": "hi",
+  "description": "Say hello",
+  "usage": "hi",
+  "handler": "builtin:echo",
+  "args": [
+    { "name": "text", "type": "string", "required": false, "defaultValue": "Hello!" }
+  ],
+  "aliases": ["hello"]
+}

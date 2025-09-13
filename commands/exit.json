@@ -1,0 +1,7 @@
+﻿{
+  "name": "exit",
+  "description": "Close the app",
+  "usage": "exit",
+  "handler": "builtin:exit",
+  "args": []
+}
