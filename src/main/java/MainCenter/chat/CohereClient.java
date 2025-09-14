@@ -1,5 +1,4 @@
 package MainCenter.chat;
-
 import com.cohere.api.Cohere;
 import com.cohere.api.requests.ChatRequest;
 import com.cohere.api.types.ChatMessage;
@@ -9,6 +8,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
+import java.util.List;
+
+
 
 /**
  * Client for the Cohere API using the official Java client library
@@ -25,11 +27,8 @@ public class CohereClient {
      */
     public CohereClient(String apiKey) {
         this.apiKey = apiKey;
-        this.cohere = Cohere.builder().token(apiKey).build();
+        this.cohere = Cohere.builder().token(apiKey).clientName("Termino").build();
         this.executor = Executors.newCachedThreadPool();
-        
-        // Print all available methods in ChatRequest.Builder
-        System.out.println(CohereApiTest.getAllAvailableMethods());
     }
     
     /**
@@ -37,42 +36,41 @@ public class CohereClient {
      * 
      * @param userMessage The user's message
      * @param context Additional context to provide to the AI (optional)
-     * @param responseHandler Callback to handle the response
+     * @param responseHandler Callback that receives the AI response
      */
     public void generateChatCompletion(String userMessage, String context, Consumer<String> responseHandler) {
-        CompletableFuture.supplyAsync(() -> {
+        CompletableFuture.runAsync(() -> {
             try {
-                // Create a chat request builder
-                // ChatRequest.Builder requestBuilder = ChatRequest.builder()
-                //     .token(apiKey)
-                //     .message(userMessage);
+                Cohere cohere = Cohere.builder().clientName("snippet").token(apiKey).build();
 
+                NonStreamedChatResponse response =
+                    cohere.chat(
+                        ChatRequest.builder()
+                            // .token(apiKey)
+                            .message(userMessage)
+                            .chatHistory(
+                                List.of(
+                                    Message.user(
+                                        ChatMessage.builder().message("Who discovered gravity?").build()),
+                                    Message.chatbot(
+                                        ChatMessage.builder()
+                                            .message(
+                                                "The man who is widely"
+                                                    + " credited with"
+                                                    + " discovering gravity"
+                                                    + " is Sir Isaac"
+                                                    + " Newton")
+                                            .build())))
+                            .build());
+                            System.out.println("Response: " + response.getText());
+                            responseHandler.accept(response.getText());
                 
-                
-                // if (context != null && !context.isEmpty()) {
-                //     requestBuilder.preamble(context);
-                // }
-                
-                // Print available methods in ChatRequest.Builder
-                System.out.println("Available methods in ChatRequest.Builder:");
-                for (java.lang.reflect.Method method : ChatRequest.Builder.class.getDeclaredMethods()) {
-                    System.out.println("- " + method.getName() + "(" + 
-                                      java.util.Arrays.toString(method.getParameterTypes())
-                                        .replace("class ", "")
-                                        .replace("interface ", "") + ")");
-                }
-                
-                // Build the request and send it
-                // ChatRequest request = requestBuilder.build();
-                // NonStreamedChatResponse response = cohere.chat(request);
-                // return response.getText();
-                return null;
             } catch (Exception e) {
                 e.printStackTrace();
-                return "I'm sorry, I couldn't generate a response. Error: " + e.getMessage();
+                responseHandler.accept("I'm sorry, I couldn't generate a response. Error: " + e.getMessage());
             }
-        }, executor).thenAccept(responseHandler);
-    }
+        }, executor);
+                }
     
     /**
      * Analyze a command using Cohere's API
@@ -81,30 +79,39 @@ public class CohereClient {
      * @param context Command history or other context
      * @param responseHandler Callback to handle the response
      */
-    // public void analyzeCommand(String command, String context, Consumer<String> responseHandler) {
-    //     CompletableFuture.supplyAsync(() -> {
-    //         try {
-    //             // Craft a specific prompt for command analysis
-    //             String analysisPrompt = "Analyze this command: '" + command + "'. " +
-    //                                     "Recent command history: " + context + ". " +
-    //                                     "Provide helpful suggestions or tips about this command. " +
-    //                                     "Keep the response brief and helpful. If there's nothing " +
-    //                                     "particularly noteworthy about the command, just respond with empty text.";
+    public void analyzeCommand(String command, String context, Consumer<String> responseHandler) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                Cohere cohere = Cohere.builder().clientName("snippet").token(apiKey).build();
+
+                NonStreamedChatResponse response =
+                    cohere.chat(
+                        ChatRequest.builder()
+                            // .token(apiKey)
+                            .message(command)
+                            .chatHistory(
+                                List.of(
+                                    Message.user(
+                                        ChatMessage.builder().message("Who discovered gravity?").build()),
+                                    Message.chatbot(
+                                        ChatMessage.builder()
+                                            .message(
+                                                "The man who is widely"
+                                                    + " credited with"
+                                                    + " discovering gravity"
+                                                    + " is Sir Isaac"
+                                                    + " Newton")
+                                            .build())))
+                            .build());
+                            System.out.println("Response: " + response.getText());
+                            responseHandler.accept(response.getText());
                 
-    //             // Create a chat request
-    //             ChatRequest request = ChatRequest.builder()
-    //                 .token(apiKey)
-    //                 .message(analysisPrompt)
-    //                 .build();
-                    
-    //             NonStreamedChatResponse response = cohere.chat(request);
-    //             return response.getText();
-    //         } catch (Exception e) {
-    //             e.printStackTrace();
-    //             return "";  // Empty response on error for command analysis
-    //         }
-    //     }, executor).thenAccept(responseHandler);
-    // }
+            } catch (Exception e) {
+                e.printStackTrace();
+                responseHandler.accept("");  // Empty response on error for command analysis
+            }
+        }, executor);
+    }
     
     /**
      * Check if the API key is valid (non-empty)

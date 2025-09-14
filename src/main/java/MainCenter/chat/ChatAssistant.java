@@ -86,10 +86,10 @@ public class ChatAssistant {
         CompletableFuture.runAsync(() -> {
             // Always use Cohere API since we now have a default API key
             // Get recent command history to provide context
-            // String context = getRecentHistoryAsContext(); to be used 
+            String context = getRecentHistoryAsContext();
             
             // Send message to Cohere API
-            // cohereClient.generateChatCompletion(message, null, responseHandler);
+            cohereClient.generateChatCompletion(message, context, responseHandler);
         }, executor);
     }
     
@@ -106,8 +106,11 @@ public class ChatAssistant {
         CompletableFuture.runAsync(() -> {
             try {
                 // Always use Cohere with our default API key
-                // Send to Cohere for analysis with no context for now
-                // cohereClient.analyzeCommand(command, null, suggestionHandler);
+                // Get command history for context
+                String context = getRecentHistoryAsContext();
+                
+                // Send to Cohere for analysis
+                cohereClient.analyzeCommand(command, context, suggestionHandler);
             } catch (Exception e) {
                 // Don't propagate exceptions to the UI thread
                 e.printStackTrace();
@@ -326,6 +329,36 @@ public class ChatAssistant {
         }
         
         return ""; // No suggestion
+    }
+    
+    /**
+     * Get recent command history formatted as context for AI
+     * @return A string containing recent command history
+     */
+    private String getRecentHistoryAsContext() {
+        if (commandHistory.isEmpty()) {
+            return "";
+        }
+        
+        StringBuilder context = new StringBuilder("Recent commands:\n");
+        
+        // Include up to 10 most recent commands
+        int startIndex = Math.max(0, commandHistory.size() - 10);
+        for (int i = startIndex; i < commandHistory.size(); i++) {
+            context.append("- ").append(commandHistory.get(i)).append("\n");
+        }
+        
+        // Add most frequently used commands
+        if (!commandFrequency.isEmpty()) {
+            context.append("\nMost used commands:\n");
+            commandFrequency.entrySet().stream()
+                .sorted((e1, e2) -> Integer.compare(e2.getValue(), e1.getValue()))
+                .limit(3)
+                .forEach(e -> context.append("- ").append(e.getKey()).append(": ")
+                    .append(e.getValue()).append(" times\n"));
+        }
+        
+        return context.toString();
     }
     
     /**
