@@ -9,25 +9,42 @@ repositories {
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21) // Java 21 LTS
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 
 application {
     mainClass = 'MainCenter.Main'
+    applicationDefaultJvmArgs = [
+        '-Dfile.encoding=UTF-8'
+    ]
 }
 
 javafx {
     version = '21.0.3'
-    modules = [ 'javafx.controls', 'javafx.graphics', 'javafx.fxml' ]
+    // You need javafx.web for WebView
+    modules = [ 'javafx.controls', 'javafx.fxml', 'javafx.web' ]
 }
 
 dependencies {
     implementation 'com.google.code.gson:gson:2.11.0'
+
+    // JSON (used by CognitoAuth / IdTokenVerifier)
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.2'
+
+    // JWT / JWK verification
+    implementation 'com.nimbusds:nimbus-jose-jwt:9.37'
 }
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+    // Keep it non-preview (we removed preview-only syntax from code)
+    // options.compilerArgs += ['--enable-preview'] // <-- not needed anymore
+}
+
+// Ensure JDK http server module is available when running via Gradle (safe even if not strictly required)
+tasks.named('run', JavaExec) {
+    jvmArgs += ['--add-modules', 'jdk.httpserver']
 }
 
 sourceSets {

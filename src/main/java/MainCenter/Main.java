@@ -1,7 +1,9 @@
 package MainCenter;
 
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
+import javafx.geometry.Side;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
@@ -12,6 +14,9 @@ import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
+
+import MainCenter.auth.CognitoAuth;
+import MainCenter.auth.IdTokenVerifier;
 
 import MainCenter.Settings.Settings;
 import MainCenter.Settings.SettingsService;
@@ -47,6 +52,9 @@ public class Main extends Application {
     private Settings settings;
     private SettingsService settingsService;
 
+    private CognitoAuth cognito;
+    private Button btnLogin;
+
     private final DateTimeFormatter tsFmt = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     // ---- Aliases: user-friendly names -> real handler IDs ----
@@ -76,6 +84,18 @@ public class Main extends Application {
         settingsService = new SettingsService();
         settings = settingsService.load();
 
+        // === COGNITO CONFIG ===
+        final String COG_REGION    = "us-east-2";
+        final String COG_POOLID    = "us-east-2_HQPRSNjPZ";
+        final String COG_CLIENTID  = "3indquta3cq73dokak2pbopra3";
+        final String COG_JWKS_URL  = "https://cognito-idp.us-east-2.amazonaws.com/us-east-2_HQPRSNjPZ/.well-known/jwks.json";
+        final int    COG_PORT      = 5555;
+        // Hosted UI domain: *host only*, no protocol
+        final String COG_HOSTED_UI_DOMAIN = "us-east-2hqprsnjpz.auth.us-east-2.amazoncognito.com";
+
+        // Init Cognito helper
+        cognito = new CognitoAuth(COG_HOSTED_UI_DOMAIN, COG_REGION, COG_POOLID, COG_CLIENTID, COG_PORT);
+
         // --- Root UI ---
         BorderPane root = new BorderPane();
 
@@ -84,18 +104,78 @@ public class Main extends Application {
         Pane spacer = new Pane();
         HBox.setHgrow(spacer, Priority.ALWAYS);
         Button btnNewTab = new Button("+");
-        btnNewTab.getStyleClass().add("newtab"); // <— distinct look for the + button
+        btnNewTab.getStyleClass().add("newtab"); // distinct look
+        btnLogin = new Button(cognito.isSignedIn() ? "Account" : "Login");
         Button btnSettings = new Button("⚙");
         Button btnMin = new Button("—");
         Button btnMax = new Button("▢");
         Button btnClose = new Button("✕");
-        HBox titleBar = new HBox(title, spacer, btnNewTab, btnSettings, btnMin, btnMax, btnClose);
+
+        // Login button behavior (uses in-app WebView flow)
+        btnLogin.setOnAction(e -> {
+            if (!cognito.isSignedIn()) {
+                btnLogin.setDisable(true);
+                cognito.signInInApp(stage).whenComplete((t, ex) -> {
+                    Platform.runLater(() -> {
+                        btnLogin.setDisable(false);
+                        if (ex != null) {
+                            new Alert(Alert.AlertType.ERROR, "Login failed: " + ex.getMessage()).showAndWait();
+                        } else {
+                            try {
+                                // Verify ID token (defense-in-depth)
+                                String issuer = "https://cognito-idp.us-east-2.amazonaws.com/" + COG_POOLID;
+                                IdTokenVerifier verifier = new IdTokenVerifier(COG_JWKS_URL, issuer, COG_CLIENTID);
+                                var claims = verifier.verify(cognito.getIdToken());
+                                String email = claims.getStringClaim("email");
+                                String name  = claims.getStringClaim("name");
+                                btnLogin.setText("Account");
+                                new Alert(Alert.AlertType.INFORMATION,
+                                        "Signed in as: " + (name != null ? name : email)).showAndWait();
+                            } catch (Exception vEx) {
+                                btnLogin.setText("Account");
+                                new Alert(Alert.AlertType.WARNING,
+                                        "Signed in, but token verify failed: " + vEx.getMessage()).showAndWait();
+                            }
+                        }
+                    });
+                });
+            } else {
+                // Simple account menu
+                ContextMenu m = new ContextMenu();
+                MenuItem miInfo = new MenuItem("Show token info");
+                miInfo.setOnAction(e2 -> {
+                    String idTok = cognito.getIdToken();
+                    String snippet = (idTok == null) ? "(no id token)" :
+                            (idTok.length() > 48 ? idTok.substring(0, 48) + "..." : idTok);
+                    Alert a = new Alert(Alert.AlertType.INFORMATION, "Signed in.\nID token: " + snippet);
+                    a.initOwner(btnLogin.getScene().getWindow());
+                    a.showAndWait();
+                });
+                MenuItem miRefresh = new MenuItem("Refresh token");
+                miRefresh.setOnAction(e2 -> {
+                    btnLogin.setDisable(true);
+                    cognito.ensureValidAsync().whenComplete((t, ex) -> Platform.runLater(() -> {
+                        btnLogin.setDisable(false);
+                        Alert a = new Alert(ex == null ? Alert.AlertType.INFORMATION : Alert.AlertType.ERROR,
+                                ex == null ? "Token refreshed" : ("Refresh failed: " + ex.getMessage()));
+                        a.initOwner(btnLogin.getScene().getWindow());
+                        a.showAndWait();
+                    }));
+                });
+                MenuItem miLogout = new MenuItem("Logout");
+                miLogout.setOnAction(e2 -> { cognito.signOut(); btnLogin.setText("Login"); });
+                m.getItems().addAll(miInfo, miRefresh, miLogout);
+                m.show(btnLogin, Side.BOTTOM, 0, 0);
+            }
+        });
+
+        HBox titleBar = new HBox(title, spacer, btnNewTab, btnLogin, btnSettings, btnMin, btnMax, btnClose);
         titleBar.getStyleClass().add("titlebar");
         root.setTop(titleBar);
 
         // --- Center: tabbed terminal sessions ---
         TabPane tabs = new TabPane();
-        tabs.getStyleClass().add("term-tabs");   // <— make tabs pretty
+        tabs.getStyleClass().add("term-tabs");
         tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
         root.setCenter(tabs);
 
@@ -581,8 +661,8 @@ public class Main extends Application {
             return f -> switch (key.toLowerCase()) {
                 case "src" -> vals.contains(f.src);
                 case "dst" -> vals.contains(f.dst);
-                case "sport" -> vals.stream().map(v->tryParseInt(v,0)).anyMatch(v->v==f.sport);
-                case "dport" -> vals.stream().map(v->tryParseInt(v,0)).anyMatch(v->v==f.dport);
+                case "sport" -> vals.stream().mapToInt(v->tryParseInt(v,0)).anyMatch(v->v==f.sport);
+                case "dport" -> vals.stream().mapToInt(v->tryParseInt(v,0)).anyMatch(v->v==f.dport);
                 default -> false;
             };
         }
